@@ -14,6 +14,9 @@ import { resolveSandboxRuntimeStatus } from "./runtime-status.js";
 import { resolveSandboxScopeKey, resolveSandboxWorkspaceDir } from "./shared.js";
 import { ensureSandboxWorkspace } from "./workspace.js";
 
+/** Timeout for sandbox initialization (container + browser setup). */
+const SANDBOX_INIT_TIMEOUT_MS = 60_000;
+
 export async function resolveSandboxContext(params: {
   config?: OpenClawConfig;
   sessionKey?: string;
@@ -33,6 +36,33 @@ export async function resolveSandboxContext(params: {
   }
 
   const cfg = resolveSandboxConfigForAgent(params.config, runtime.agentId);
+
+  // Wrap sandbox initialization in a timeout to prevent hung Docker daemons
+  // from blocking the entire message processing pipeline indefinitely.
+  const result = await Promise.race([
+    resolveSandboxContextInner({ rawSessionKey, cfg, params }),
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `Sandbox initialization timed out after ${SANDBOX_INIT_TIMEOUT_MS}ms (Docker may be unresponsive)`,
+            ),
+          ),
+        SANDBOX_INIT_TIMEOUT_MS,
+      ),
+    ),
+  ]);
+
+  return result;
+}
+
+async function resolveSandboxContextInner(args: {
+  rawSessionKey: string;
+  cfg: ReturnType<typeof resolveSandboxConfigForAgent>;
+  params: { config?: OpenClawConfig; workspaceDir?: string };
+}): Promise<SandboxContext> {
+  const { rawSessionKey, cfg, params } = args;
 
   await maybePruneSandboxes(cfg);
 

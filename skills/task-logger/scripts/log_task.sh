@@ -19,6 +19,12 @@ case "$AGENT_NAME" in
   linus|Linus)
     CALENDAR="Linus"
     ;;
+  RJ|ricco_re)
+    CALENDAR="RJ"
+    ;;
+  rhs|R|RHS)
+    CALENDAR="R"
+    ;;
   *)
     echo "Unknown agent: $AGENT_NAME. Using 'Leopoldo' as default." >&2
     CALENDAR="Leopoldo"

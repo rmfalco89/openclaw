@@ -22,6 +22,7 @@ import {
   issuePairingChallenge,
   resolveOutboundMediaUrls,
   mergeAllowlist,
+  normalizeNonTelegramGroupPolicy,
   resolveMentionGatingWithBypass,
   normalizeNonTelegramGroupPolicy,
   resolveOpenProviderRuntimeGroupPolicy,

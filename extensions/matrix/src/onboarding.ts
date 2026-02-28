@@ -7,6 +7,7 @@ import {
   hasConfiguredSecretInput,
   mergeAllowFromEntries,
   promptSingleChannelSecretInput,
+  normalizeNonTelegramGroupPolicy,
   promptChannelAccessConfig,
   setTopLevelChannelGroupPolicy,
   type SecretInput,
@@ -397,7 +398,9 @@ export const matrixOnboardingAdapter: ChannelOnboardingAdapter = {
     });
     if (accessConfig) {
       if (accessConfig.policy !== "allowlist") {
-        next = setMatrixGroupPolicy(next, accessConfig.policy);
+        // "members" is Telegram-only; normalize to "open" for Matrix
+        const normalizedPolicy = normalizeNonTelegramGroupPolicy(accessConfig.policy);
+        next = setMatrixGroupPolicy(next, normalizedPolicy);
       } else {
         let roomKeys = accessConfig.entries;
         if (accessConfig.entries.length > 0) {

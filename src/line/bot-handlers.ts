@@ -9,6 +9,7 @@ import type {
 } from "@line/bot-sdk";
 import type { OpenClawConfig } from "../config/config.js";
 import {
+  normalizeNonTelegramGroupPolicy,
   resolveAllowlistProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   warnMissingProviderGroupPolicyFallbackOnce,
@@ -137,21 +138,25 @@ async function shouldProcessLineEvent(
   const fallbackGroupAllowFrom = account.config.allowFrom?.length
     ? account.config.allowFrom
     : undefined;
+  const defaultGroupAllowFrom = cfg.channels?.defaults?.groupAllowFrom;
   const groupAllowFrom = firstDefined(
     groupAllowOverride,
     account.config.groupAllowFrom,
+    defaultGroupAllowFrom,
     fallbackGroupAllowFrom,
   );
   // Group authorization stays explicit to group allowlists and must not
   // inherit DM pairing-store identities.
   const effectiveGroupAllow = normalizeAllowFrom(groupAllowFrom);
   const defaultGroupPolicy = resolveDefaultGroupPolicy(cfg);
-  const { groupPolicy, providerMissingFallbackApplied } =
+  const { groupPolicy: rawGroupPolicy, providerMissingFallbackApplied } =
     resolveAllowlistProviderRuntimeGroupPolicy({
       providerConfigPresent: cfg.channels?.line !== undefined,
       groupPolicy: account.config.groupPolicy,
       defaultGroupPolicy,
     });
+  // "members" is Telegram-only; normalize to "open" for Line
+  const groupPolicy = normalizeNonTelegramGroupPolicy(rawGroupPolicy);
   warnMissingProviderGroupPolicyFallbackOnce({
     providerMissingFallbackApplied,
     providerKey: "line",

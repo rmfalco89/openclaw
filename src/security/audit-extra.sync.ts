@@ -371,7 +371,8 @@ function listGroupPolicyOpen(cfg: OpenClawConfig): string[] {
       continue;
     }
     const section = value as Record<string, unknown>;
-    if (section.groupPolicy === "open") {
+    // "members" normalizes to "open" for non-Telegram channels; flag both as open-access.
+    if (section.groupPolicy === "open" || section.groupPolicy === "members") {
       out.push(`channels.${channelId}.groupPolicy`);
     }
     const accounts = section.accounts;
@@ -381,7 +382,7 @@ function listGroupPolicyOpen(cfg: OpenClawConfig): string[] {
           continue;
         }
         const acc = accountVal as Record<string, unknown>;
-        if (acc.groupPolicy === "open") {
+        if (acc.groupPolicy === "open" || acc.groupPolicy === "members") {
           out.push(`channels.${channelId}.accounts.${accountId}.groupPolicy`);
         }
       }
@@ -407,7 +408,9 @@ function listPotentialMultiUserSignals(cfg: OpenClawConfig): string[] {
 
   const inspectSection = (section: Record<string, unknown>, basePath: string) => {
     const groupPolicy = typeof section.groupPolicy === "string" ? section.groupPolicy : null;
-    if (groupPolicy === "open") {
+    // "members" normalizes to "open" for non-Telegram channels; treat as effectively open.
+    const isEffectivelyOpen = groupPolicy === "open" || groupPolicy === "members";
+    if (isEffectivelyOpen) {
       out.add(`${basePath}.groupPolicy="open"`);
     } else if (groupPolicy === "allowlist" && hasConfiguredGroupTargets(section)) {
       out.add(`${basePath}.groupPolicy="allowlist" with configured group targets`);

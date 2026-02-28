@@ -19,6 +19,7 @@ import { logInboundDrop } from "../../../../src/channels/logging.js";
 import { resolveMentionGatingWithBypass } from "../../../../src/channels/mention-gating.js";
 import { loadConfig } from "../../../../src/config/config.js";
 import { isDangerousNameMatchingEnabled } from "../../../../src/config/dangerous-name-matching.js";
+import { normalizeNonTelegramGroupPolicy } from "../../../../src/config/runtime-group-policy.js";
 import { logVerbose, shouldLogVerbose } from "../../../../src/globals.js";
 import { recordChannelActivity } from "../../../../src/infra/channel-activity.js";
 import {
@@ -517,7 +518,8 @@ export async function preflightDiscordMessage(
   if (
     isGuildMessage &&
     !isDiscordGroupAllowedByPolicy({
-      groupPolicy: params.groupPolicy,
+      // Normalize "members" to "open": Discord has no Bot API member-check equivalent.
+      groupPolicy: normalizeNonTelegramGroupPolicy(params.groupPolicy),
       guildAllowlisted: Boolean(guildInfo),
       channelAllowlistConfigured,
       channelAllowed,

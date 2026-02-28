@@ -45,7 +45,10 @@ import { resolveNativeCommandSessionTargets } from "../../../../src/channels/nat
 import { createReplyPrefixOptions } from "../../../../src/channels/reply-prefix.js";
 import type { OpenClawConfig, loadConfig } from "../../../../src/config/config.js";
 import { isDangerousNameMatchingEnabled } from "../../../../src/config/dangerous-name-matching.js";
-import { resolveOpenProviderRuntimeGroupPolicy } from "../../../../src/config/runtime-group-policy.js";
+import {
+  normalizeNonTelegramGroupPolicy,
+  resolveOpenProviderRuntimeGroupPolicy,
+} from "../../../../src/config/runtime-group-policy.js";
 import { loadSessionStore, resolveStorePath } from "../../../../src/config/sessions.js";
 import { logVerbose } from "../../../../src/globals.js";
 import { createSubsystemLogger } from "../../../../src/logging/subsystem.js";
@@ -1402,11 +1405,13 @@ async function dispatchDiscordCommandInteraction(params: {
     const channelAllowlistConfigured =
       Boolean(guildInfo?.channels) && Object.keys(guildInfo?.channels ?? {}).length > 0;
     const channelAllowed = channelConfig?.allowed !== false;
-    const { groupPolicy } = resolveOpenProviderRuntimeGroupPolicy({
+    const { groupPolicy: rawGroupPolicy } = resolveOpenProviderRuntimeGroupPolicy({
       providerConfigPresent: cfg.channels?.discord !== undefined,
       groupPolicy: discordConfig?.groupPolicy,
       defaultGroupPolicy: cfg.channels?.defaults?.groupPolicy,
     });
+    // Normalize "members" to "open": Discord has no Bot API member-check equivalent.
+    const groupPolicy = normalizeNonTelegramGroupPolicy(rawGroupPolicy);
     const allowByPolicy = isDiscordGroupAllowedByPolicy({
       groupPolicy,
       guildAllowlisted: Boolean(guildInfo),

@@ -1,9 +1,11 @@
 import { loadConfig } from "../../../../src/config/config.js";
 import {
+  normalizeNonTelegramGroupPolicy,
   resolveOpenProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   warnMissingProviderGroupPolicyFallbackOnce,
 } from "../../../../src/config/runtime-group-policy.js";
+import type { GroupPolicy } from "../../../../src/config/types.base.js";
 import { logVerbose } from "../../../../src/globals.js";
 import { issuePairingChallenge } from "../../../../src/pairing/pairing-challenge.js";
 import { upsertChannelPairingRequest } from "../../../../src/pairing/pairing-store.js";
@@ -25,17 +27,28 @@ const PAIRING_REPLY_HISTORY_GRACE_MS = 30_000;
 
 function resolveWhatsAppRuntimeGroupPolicy(params: {
   providerConfigPresent: boolean;
-  groupPolicy?: "open" | "allowlist" | "disabled";
-  defaultGroupPolicy?: "open" | "allowlist" | "disabled";
+  groupPolicy?: GroupPolicy;
+  defaultGroupPolicy?: GroupPolicy;
 }): {
   groupPolicy: "open" | "allowlist" | "disabled";
   providerMissingFallbackApplied: boolean;
 } {
-  return resolveOpenProviderRuntimeGroupPolicy({
+  // "members" is Telegram-only; treat it as "open" for WhatsApp
+  const normalizedGroupPolicy = params.groupPolicy
+    ? normalizeNonTelegramGroupPolicy(params.groupPolicy)
+    : params.groupPolicy;
+  const normalizedDefaultGroupPolicy = params.defaultGroupPolicy
+    ? normalizeNonTelegramGroupPolicy(params.defaultGroupPolicy)
+    : params.defaultGroupPolicy;
+  const result = resolveOpenProviderRuntimeGroupPolicy({
     providerConfigPresent: params.providerConfigPresent,
-    groupPolicy: params.groupPolicy,
-    defaultGroupPolicy: params.defaultGroupPolicy,
+    groupPolicy: normalizedGroupPolicy,
+    defaultGroupPolicy: normalizedDefaultGroupPolicy,
   });
+  return result as {
+    groupPolicy: "open" | "allowlist" | "disabled";
+    providerMissingFallbackApplied: boolean;
+  };
 }
 
 export async function checkInboundAccessControl(params: {

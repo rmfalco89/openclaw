@@ -29,6 +29,7 @@ import { createReplyPrefixOptions } from "../../../../src/channels/reply-prefix.
 import { recordInboundSession } from "../../../../src/channels/session.js";
 import { createTypingCallbacks } from "../../../../src/channels/typing.js";
 import { resolveChannelGroupRequireMention } from "../../../../src/config/group-policy.js";
+import { normalizeNonTelegramGroupPolicy } from "../../../../src/config/runtime-group-policy.js";
 import { readSessionUpdatedAt, resolveStorePath } from "../../../../src/config/sessions.js";
 import { danger, logVerbose, shouldLogVerbose } from "../../../../src/globals.js";
 import { enqueueSystemEvent } from "../../../../src/infra/system-events.js";
@@ -531,7 +532,8 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       await resolveSignalAccessState({
         accountId: deps.accountId,
         dmPolicy: deps.dmPolicy,
-        groupPolicy: deps.groupPolicy,
+        // "members" is Telegram-only; normalize to "open" for Signal
+        groupPolicy: normalizeNonTelegramGroupPolicy(deps.groupPolicy),
         allowFrom: deps.allowFrom,
         groupAllowFrom: deps.groupAllowFrom,
         sender,

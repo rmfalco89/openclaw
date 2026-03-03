@@ -724,10 +724,8 @@ export async function collectChannelSecurityFindings(params: {
         }),
       );
 
-      const defaultGroupAllowFrom = Array.isArray(
-        params.cfg.channels?.defaults?.groupAllowFrom,
-      )
-        ? params.cfg.channels!.defaults!.groupAllowFrom!
+      const defaultGroupAllowFrom = Array.isArray(params.cfg.channels?.defaults?.groupAllowFrom)
+        ? params.cfg.channels.defaults.groupAllowFrom
         : [];
       const hasAnySenderAllowlist =
         storeAllowFrom.length > 0 ||

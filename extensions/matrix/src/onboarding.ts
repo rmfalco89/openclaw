@@ -7,7 +7,6 @@ import {
   mergeAllowFromEntries,
   normalizeNonTelegramGroupPolicy,
   promptSingleChannelSecretInput,
-  normalizeNonTelegramGroupPolicy,
   promptChannelAccessConfig,
   type SecretInput,
   type ChannelOnboardingAdapter,

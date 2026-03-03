@@ -12,7 +12,6 @@ import {
   mergeAllowlist,
   normalizeNonTelegramGroupPolicy,
   resolveMentionGatingWithBypass,
-  normalizeNonTelegramGroupPolicy,
   resolveOpenProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   resolveSenderCommandAuthorization,

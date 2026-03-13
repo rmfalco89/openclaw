@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import {
+  normalizeNonTelegramGroupPolicy,
   resolveAllowlistProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   resolveOpenProviderRuntimeGroupPolicy,
@@ -86,7 +87,7 @@ export function collectAllowlistProviderRestrictSendersWarnings(
     configuredGroupPolicy: params.configuredGroupPolicy,
     collect: (groupPolicy) =>
       collectOpenGroupPolicyRestrictSendersWarnings({
-        groupPolicy,
+        groupPolicy: normalizeNonTelegramGroupPolicy(groupPolicy),
         surface: params.surface,
         openScope: params.openScope,
         groupPolicyPath: params.groupPolicyPath,

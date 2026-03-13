@@ -16,6 +16,24 @@ const TELEGRAM_POLL_RESTART_POLICY = {
 
 const POLL_STALL_THRESHOLD_MS = 90_000;
 const POLL_WATCHDOG_INTERVAL_MS = 30_000;
+const POLL_STOP_GRACE_MS = 15_000;
+
+const waitForGracefulStop = async (stop: () => Promise<void>) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      stop(),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, POLL_STOP_GRACE_MS);
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+};
 
 /**
  * Health check interval: how often to ping Telegram API to detect stale connections.
@@ -186,6 +204,11 @@ export class TelegramPollingSession {
     let stopPromise: Promise<void> | undefined;
     let stalledRestart = false;
     let staleConnectionDetected = false;
+    let forceCycleTimer: ReturnType<typeof setTimeout> | undefined;
+    let forceCycleResolve: (() => void) | undefined;
+    const forceCyclePromise = new Promise<void>((resolve) => {
+      forceCycleResolve = resolve;
+    });
     const stopRunner = () => {
       fetchAbortController?.abort();
       stopPromise ??= Promise.resolve(runner.stop())
@@ -219,6 +242,18 @@ export class TelegramPollingSession {
           `[telegram] Polling stall detected (no getUpdates for ${formatDurationPrecise(elapsed)}); forcing restart.`,
         );
         void stopRunner();
+        void stopBot();
+        if (!forceCycleTimer) {
+          forceCycleTimer = setTimeout(() => {
+            if (this.opts.abortSignal?.aborted) {
+              return;
+            }
+            this.opts.log(
+              `[telegram] Polling runner stop timed out after ${formatDurationPrecise(POLL_STOP_GRACE_MS)}; forcing restart cycle.`,
+            );
+            forceCycleResolve?.();
+          }, POLL_STOP_GRACE_MS);
+        }
       }
     }, POLL_WATCHDOG_INTERVAL_MS);
 
@@ -301,8 +336,7 @@ export class TelegramPollingSession {
     this.opts.abortSignal?.addEventListener("abort", stopOnAbort, { once: true });
     startHealthCheck();
     try {
-      await runner.task();
-      // Abort takes highest priority -- always exit cleanly when signaled.
+      await Promise.race([runner.task(), forceCyclePromise]);
       if (this.opts.abortSignal?.aborted) {
         return "exit";
       }
@@ -345,9 +379,12 @@ export class TelegramPollingSession {
     } finally {
       clearInterval(watchdog);
       stopHealthCheck();
+      if (forceCycleTimer) {
+        clearTimeout(forceCycleTimer);
+      }
       this.opts.abortSignal?.removeEventListener("abort", stopOnAbort);
-      await stopRunner();
-      await stopBot();
+      await waitForGracefulStop(stopRunner);
+      await waitForGracefulStop(stopBot);
       this.#activeRunner = undefined;
       if (this.#activeFetchAbort === fetchAbortController) {
         this.#activeFetchAbort = undefined;

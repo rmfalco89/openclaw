@@ -9,6 +9,8 @@ import type { OpenClawConfig } from "../config/config.js";
 vi.mock("@mariozechner/pi-coding-agent", () => ({
   CURRENT_SESSION_VERSION: 1,
   SessionManager: vi.fn(),
+  AuthStorage: vi.fn(),
+  ModelRegistry: vi.fn(),
   codingTools: [],
   createReadTool: vi.fn(),
   createEditTool: vi.fn(),

@@ -56,7 +56,6 @@ describe("registerPluginCommand", () => {
         acceptsArgs: false,
         name: "demo_cmd",
         description: "Demo command",
-        acceptsArgs: false,
       },
     ]);
   });

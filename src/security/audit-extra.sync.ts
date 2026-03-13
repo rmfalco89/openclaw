@@ -1322,7 +1322,10 @@ export function collectExposureMatrixFindings(cfg: OpenClawConfig): SecurityAudi
       detail:
         `Found groupPolicy="open" at:\n${openGroups.map((p) => `- ${p}`).join("\n")}\n` +
         "With tools.elevated enabled, a prompt injection in those rooms can become a high-impact incident.",
-      remediation: `Set groupPolicy="allowlist" or "members" and keep elevated allowlists extremely tight.`,
+      // "members" is only meaningful for Telegram; for other channels it maps to "open".
+      remediation: openGroups.some((p) => p.startsWith("channels.telegram"))
+        ? `Set groupPolicy="allowlist" (or "members" for Telegram) and keep elevated allowlists extremely tight.`
+        : `Set groupPolicy="allowlist" and keep elevated allowlists extremely tight.`,
     });
   }
 

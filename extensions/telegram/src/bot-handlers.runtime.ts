@@ -88,6 +88,7 @@ import {
   evaluateTelegramGroupBaseAccess,
   evaluateTelegramGroupPolicyAccess,
 } from "./group-access.js";
+import { invalidateGroupMembership, verifyGroupMembership } from "./group-membership-cache.js";
 import { migrateTelegramGroupConfig } from "./group-migration.js";
 import { resolveTelegramInlineButtonsScope } from "./inline-buttons.js";
 import { dispatchTelegramPluginInteractiveHandler } from "./interactive-dispatch.js";
@@ -534,7 +535,7 @@ export const registerTelegramHandlers = ({
         senderUsername,
       }));
 
-  const shouldSkipGroupMessage = (params: {
+  const shouldSkipGroupMessage = async (params: {
     isGroup: boolean;
     chatId: string | number;
     chatTitle?: string;
@@ -545,7 +546,7 @@ export const registerTelegramHandlers = ({
     hasGroupAllowOverride: boolean;
     groupConfig?: TelegramGroupConfig;
     topicConfig?: TelegramTopicConfig;
-  }) => {
+  }): Promise<boolean> => {
     const {
       isGroup,
       chatId,
@@ -628,6 +629,20 @@ export const registerTelegramHandlers = ({
       logger.info({ chatId, title: chatTitle, reason: "not-allowed" }, "skipping group message");
       return true;
     }
+    if (policyAccess.groupPolicy === "members") {
+      const result = await verifyGroupMembership({
+        chatId,
+        api: bot.api,
+        botId: bot.botInfo.id,
+        allowFrom: effectiveGroupAllow,
+      });
+      if (!result.trusted) {
+        logVerbose(
+          `Blocked telegram group message (groupPolicy: members, untrusted members: ${result.reason ?? "unknown"})`,
+        );
+        return true;
+      }
+    }
     return false;
   };
 
@@ -707,7 +722,7 @@ export const registerTelegramHandlers = ({
     return { dmPolicy: effectiveDmPolicy, ...groupAllowContext };
   };
 
-  const authorizeTelegramEventSender = (params: {
+  const authorizeTelegramEventSender = async (params: {
     chatId: number;
     chatTitle?: string;
     isGroup: boolean;
@@ -715,7 +730,7 @@ export const registerTelegramHandlers = ({
     senderUsername: string;
     mode: TelegramEventAuthorizationMode;
     context: TelegramEventAuthorizationContext;
-  }): TelegramEventAuthorizationResult => {
+  }): Promise<TelegramEventAuthorizationResult> => {
     const { chatId, chatTitle, isGroup, senderId, senderUsername, mode, context } = params;
     const {
       dmPolicy,
@@ -735,7 +750,7 @@ export const registerTelegramHandlers = ({
       deniedGroupReason,
     } = authRules;
     if (
-      shouldSkipGroupMessage({
+      await shouldSkipGroupMessage({
         isGroup,
         chatId,
         chatTitle,
@@ -819,7 +834,7 @@ export const registerTelegramHandlers = ({
         isGroup,
         isForum,
       });
-      const senderAuthorization = authorizeTelegramEventSender({
+      const senderAuthorization = await authorizeTelegramEventSender({
         chatId,
         chatTitle: reaction.chat.title,
         isGroup,
@@ -1265,7 +1280,7 @@ export const registerTelegramHandlers = ({
         !isGroup || (!execApprovalButtonsEnabled && inlineButtonsScope === "allowlist")
           ? "callback-allowlist"
           : "callback-scope";
-      const senderAuthorization = authorizeTelegramEventSender({
+      const senderAuthorization = await authorizeTelegramEventSender({
         chatId,
         chatTitle: callbackMessage.chat.title,
         isGroup,
@@ -1735,6 +1750,14 @@ export const registerTelegramHandlers = ({
     }
   });
 
+  // Invalidate group membership cache on member changes
+  bot.on("message:new_chat_members", (ctx) => {
+    invalidateGroupMembership(ctx.message.chat.id);
+  });
+  bot.on("message:left_chat_member", (ctx) => {
+    invalidateGroupMembership(ctx.message.chat.id);
+  });
+
   type InboundTelegramEvent = {
     ctxForDedupe: TelegramUpdateKeyContext;
     ctx: TelegramContext;
@@ -1787,7 +1810,7 @@ export const registerTelegramHandlers = ({
       }
 
       if (
-        shouldSkipGroupMessage({
+        await shouldSkipGroupMessage({
           isGroup: event.isGroup,
           chatId: event.chatId,
           chatTitle: event.msg.chat.title,

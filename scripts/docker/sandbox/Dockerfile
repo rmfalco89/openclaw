@@ -11,6 +11,7 @@ RUN --mount=type=cache,id=openclaw-sandbox-bookworm-apt-cache,target=/var/cache/
     curl \
     git \
     jq \
+    openssh-client \
     python3 \
     ripgrep
 

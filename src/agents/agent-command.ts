@@ -56,6 +56,7 @@ import {
 import { isStoredCredentialCompatibleWithAuthProvider } from "./auth-profiles/order.js";
 import { clearSessionAuthProfileOverride } from "./auth-profiles/session-override.js";
 import { ensureAuthProfileStore } from "./auth-profiles/store.js";
+import { withChatRequestScope } from "./chat-request-scope.js";
 import {
   persistSessionEntry as persistSessionEntryBase,
   prependInternalEventContext,
@@ -1127,114 +1128,121 @@ async function agentCommandInternal(
 
         let fallbackAttemptIndex = 0;
         let currentTurnUserMessagePersisted = false;
-        const fallbackResult = await runWithModelFallback<AgentAttemptResult>({
-          cfg,
-          provider,
-          model,
-          ...modelManifestContext,
-          runId,
-          agentDir,
-          agentId: sessionAgentId,
-          sessionKey: sessionKey ?? sessionId,
-          prepareAgentHarnessRuntime: async ({ provider, model, agentHarnessRuntimeOverride }) => {
-            await ensureSelectedAgentHarnessPlugin({
-              config: cfg,
-              provider,
-              modelId: model,
-              agentId: sessionAgentId,
-              sessionKey,
-              agentHarnessRuntimeOverride,
-              workspaceDir,
-            });
-          },
-          fallbacksOverride: effectiveFallbacksOverride,
-          onFallbackStep: (step) => {
-            fallbackTrajectoryRecorder?.recordEvent("model.fallback_step", step);
-          },
-          classifyResult: ({ provider, model, result }) =>
-            classifyEmbeddedPiRunResultForModelFallback({
-              provider,
-              model,
-              result,
-            }),
-          run: async (providerOverride, modelOverride, runOptions) => {
-            const isAutoFallbackPrimaryProbeCandidate =
-              autoFallbackPrimaryProbe &&
-              providerOverride === autoFallbackPrimaryProbe.provider &&
-              modelOverride === autoFallbackPrimaryProbe.model;
-            const attemptSessionEntry =
-              autoFallbackPrimaryProbe &&
-              providerOverride === autoFallbackPrimaryProbe.fallbackProvider &&
-              !isAutoFallbackPrimaryProbeCandidate
-                ? sessionEntry
-                : sessionEntryForAttempt;
-            if (isAutoFallbackPrimaryProbeCandidate) {
-              markAutoFallbackPrimaryProbe({
-                probe: autoFallbackPrimaryProbe,
+        const runFallback = () =>
+          runWithModelFallback<AgentAttemptResult>({
+            cfg,
+            provider,
+            model,
+            ...modelManifestContext,
+            runId,
+            agentDir,
+            agentId: sessionAgentId,
+            sessionKey: sessionKey ?? sessionId,
+            prepareAgentHarnessRuntime: async ({ provider, model, agentHarnessRuntimeOverride }) => {
+              await ensureSelectedAgentHarnessPlugin({
+                config: cfg,
+                provider,
+                modelId: model,
+                agentId: sessionAgentId,
                 sessionKey,
+                agentHarnessRuntimeOverride,
+                workspaceDir,
               });
-            }
-            const isFallbackRetry = fallbackAttemptIndex > 0;
-            fallbackAttemptIndex += 1;
-            opts.onActiveModelSelected?.({
-              provider: providerOverride,
-              model: modelOverride,
-            });
-            return attemptExecutionRuntime.runAgentAttempt({
-              providerOverride,
-              modelOverride,
-              modelFallbacksOverride: effectiveFallbacksOverride,
-              originalProvider: provider,
-              cfg,
-              sessionEntry: attemptSessionEntry,
-              sessionId,
-              sessionKey,
-              sessionAgentId,
-              sessionFile,
-              workspaceDir,
-              body,
-              isFallbackRetry,
-              resolvedThinkLevel,
-              fastMode: resolveFastModeState({
-                cfg,
+            },
+            fallbacksOverride: effectiveFallbacksOverride,
+            onFallbackStep: (step) => {
+              fallbackTrajectoryRecorder?.recordEvent("model.fallback_step", step);
+            },
+            classifyResult: ({ provider, model, result }) =>
+              classifyEmbeddedPiRunResultForModelFallback({
+                provider,
+                model,
+                result,
+              }),
+            run: async (providerOverride, modelOverride, runOptions) => {
+              const isAutoFallbackPrimaryProbeCandidate =
+                autoFallbackPrimaryProbe &&
+                providerOverride === autoFallbackPrimaryProbe.provider &&
+                modelOverride === autoFallbackPrimaryProbe.model;
+              const attemptSessionEntry =
+                autoFallbackPrimaryProbe &&
+                providerOverride === autoFallbackPrimaryProbe.fallbackProvider &&
+                !isAutoFallbackPrimaryProbeCandidate
+                  ? sessionEntry
+                  : sessionEntryForAttempt;
+              if (isAutoFallbackPrimaryProbeCandidate) {
+                markAutoFallbackPrimaryProbe({
+                  probe: autoFallbackPrimaryProbe,
+                  sessionKey,
+                });
+              }
+              const isFallbackRetry = fallbackAttemptIndex > 0;
+              fallbackAttemptIndex += 1;
+              opts.onActiveModelSelected?.({
                 provider: providerOverride,
                 model: modelOverride,
-                agentId: sessionAgentId,
-                sessionEntry,
-              }).enabled,
-              timeoutMs,
-              runId,
-              opts,
-              runContext,
-              spawnedBy,
-              messageChannel,
-              skillsSnapshot,
-              resolvedVerboseLevel,
-              agentDir,
-              authProfileProvider: providerForAuthProfileValidation,
-              sessionStore,
-              storePath,
-              allowTransientCooldownProbe: runOptions?.allowTransientCooldownProbe,
-              sessionHasHistory:
-                !isNewSession || (await attemptExecutionRuntime.sessionFileHasContent(sessionFile)),
-              suppressPromptPersistenceOnRetry:
-                opts.suppressPromptPersistence === true ||
-                (isFallbackRetry && currentTurnUserMessagePersisted),
-              onUserMessagePersisted: () => {
-                currentTurnUserMessagePersisted = true;
-              },
-              onAgentEvent: (evt) => {
-                if (
-                  evt.stream === "lifecycle" &&
-                  typeof evt.data?.phase === "string" &&
-                  (evt.data.phase === "end" || evt.data.phase === "error")
-                ) {
-                  lifecycleEnded = true;
-                }
-              },
-            });
-          },
-        });
+              });
+              return attemptExecutionRuntime.runAgentAttempt({
+                providerOverride,
+                modelOverride,
+                modelFallbacksOverride: effectiveFallbacksOverride,
+                originalProvider: provider,
+                cfg,
+                sessionEntry: attemptSessionEntry,
+                sessionId,
+                sessionKey,
+                sessionAgentId,
+                sessionFile,
+                workspaceDir,
+                body,
+                isFallbackRetry,
+                resolvedThinkLevel,
+                fastMode: resolveFastModeState({
+                  cfg,
+                  provider: providerOverride,
+                  model: modelOverride,
+                  agentId: sessionAgentId,
+                  sessionEntry: attemptSessionEntry,
+                }).enabled,
+                timeoutMs,
+                runId,
+                opts,
+                runContext,
+                spawnedBy,
+                messageChannel,
+                skillsSnapshot,
+                resolvedVerboseLevel,
+                agentDir,
+                authProfileProvider: providerForAuthProfileValidation,
+                sessionStore,
+                storePath,
+                allowTransientCooldownProbe: runOptions?.allowTransientCooldownProbe,
+                sessionHasHistory:
+                  !isNewSession || (await attemptExecutionRuntime.sessionFileHasContent(sessionFile)),
+                suppressPromptPersistenceOnRetry:
+                  opts.suppressPromptPersistence === true ||
+                  (isFallbackRetry && currentTurnUserMessagePersisted),
+                onUserMessagePersisted: () => {
+                  currentTurnUserMessagePersisted = true;
+                },
+                onAgentEvent: (evt) => {
+                  if (
+                    evt.stream === "lifecycle" &&
+                    typeof evt.data?.phase === "string" &&
+                    (evt.data.phase === "end" || evt.data.phase === "error")
+                  ) {
+                    lifecycleEnded = true;
+                  }
+                },
+              });
+            },
+          });
+        // Inject sessionKey as the OpenAI `user` field via ChatRequestScope so
+        // claude-code-proxy and similar openai-completions backends can route
+        // CLI-driven agent runs to the correct per-session binding.
+        const fallbackResult = sessionKey
+          ? await withChatRequestScope({ sessionKey }, runFallback)
+          : await runFallback();
         result = fallbackResult.result;
         fallbackProvider = fallbackResult.provider;
         fallbackModel = fallbackResult.model;

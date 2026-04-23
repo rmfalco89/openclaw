@@ -32,6 +32,7 @@ import type { SpawnedToolContext } from "./spawned-context.js";
 import type { ToolFsPolicy } from "./tool-fs-policy.js";
 import { resolveToolLoopDetectionConfig } from "./tool-loop-detection-config.js";
 import { createAgentsListTool } from "./tools/agents-list-tool.js";
+import { createClaudeCodeTool } from "./tools/claude-code-tool.js";
 import type { AnyAgentTool } from "./tools/common.js";
 import { createCronTool } from "./tools/cron-tool.js";
 import { createEmbeddedCallGateway } from "./tools/embedded-gateway-stub.js";
@@ -464,6 +465,7 @@ export function createOpenClawTools(
       activeModelProvider: options?.modelProvider,
       activeModelId: options?.modelId,
     }),
+    createClaudeCodeTool(),
     ...collectPresentOpenClawTools([webSearchTool, webFetchTool, imageTool, pdfTool]),
   ];
   options?.recordToolPrepStage?.("openclaw-tools:core-tool-list");

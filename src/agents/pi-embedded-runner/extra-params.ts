@@ -20,6 +20,7 @@ import { legacyModelKey, modelKey } from "../model-selection-normalize.js";
 import { supportsGptParallelToolCallsPayload } from "../provider-api-families.js";
 import { resolveProviderRequestPolicyConfig } from "../provider-request-config.js";
 import type { AgentRuntimeTransport } from "../runtime-plan/types.js";
+import { createChatSessionUserWrapper } from "./chat-session-user-wrapper.js";
 import { createGoogleThinkingPayloadWrapper } from "./google-stream-wrappers.js";
 import { log } from "./logger.js";
 import { createMinimaxThinkingDisabledWrapper } from "./minimax-stream-wrappers.js";
@@ -761,6 +762,11 @@ function applyPostPluginStreamWrappers(
   ctx.agent.streamFn = createOpenAIStringContentWrapper(ctx.agent.streamFn);
   ctx.agent.streamFn = createOpenAICompletionsStrictMessageKeysWrapper(ctx.agent.streamFn);
   ctx.agent.streamFn = createOpenAICompletionsToolsCompatWrapper(ctx.agent.streamFn);
+
+  // Inject the current chat request's sessionKey as the OpenAI `user` field on
+  // openai-completions calls. Consumed by claude-code-proxy to route each
+  // Discord channel to its own Claude Code session + cwd.
+  ctx.agent.streamFn = createChatSessionUserWrapper(ctx.agent.streamFn);
 
   if (!ctx.providerWrapperHandled) {
     ctx.agent.streamFn = createDeepSeekV4OpenAICompatibleThinkingWrapper({

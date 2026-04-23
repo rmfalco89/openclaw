@@ -567,5 +567,10 @@ export const TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
       title: "TTS",
       detailKeys: ["text", "channel"],
     },
+    claude_code: {
+      emoji: "🧠",
+      title: "Claude Code",
+      detailKeys: ["task", "workdir", "timeoutSeconds"],
+    },
   },
 };

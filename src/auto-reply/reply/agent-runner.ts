@@ -5,6 +5,7 @@ import {
   resolveAgentConfig,
   resolveSessionAgentId,
 } from "../../agents/agent-scope.js";
+import { withChatRequestScope } from "../../agents/chat-request-scope.js";
 import { resolveContextTokensForModel } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
 import { resolveModelAuthMode } from "../../agents/model-auth.js";
@@ -1453,37 +1454,41 @@ export async function runReplyAgent(params: {
 
     replyOperation.setPhase("running");
     const runStartedAt = Date.now();
-    const runOutcome = await traceAgentPhase("reply.run_agent_turn", () =>
-      runAgentTurnWithFallback({
-        commandBody,
-        transcriptCommandBody,
-        followupRun,
-        sessionCtx,
-        replyThreading: replyThreadingOverride ?? sessionCtx.ReplyThreading,
-        replyOperation,
-        opts,
-        typingSignals,
-        blockReplyPipeline,
-        blockStreamingEnabled,
-        blockReplyChunking,
-        resolvedBlockStreamingBreak,
-        applyReplyToMode,
-        shouldEmitToolResult,
-        shouldEmitToolOutput,
-        pendingToolTasks,
-        resetSessionAfterCompactionFailure,
-        resetSessionAfterRoleOrderingConflict,
-        isHeartbeat,
-        sessionKey,
-        runtimePolicySessionKey,
-        getActiveSessionEntry: () => activeSessionEntry,
-        activeSessionStore,
-        storePath,
-        resolvedVerboseLevel,
-        toolProgressDetail,
-        replyMediaContext,
-      }),
-    );
+    const runTurn = () =>
+      traceAgentPhase("reply.run_agent_turn", () =>
+        runAgentTurnWithFallback({
+          commandBody,
+          transcriptCommandBody,
+          followupRun,
+          sessionCtx,
+          replyThreading: replyThreadingOverride ?? sessionCtx.ReplyThreading,
+          replyOperation,
+          opts,
+          typingSignals,
+          blockReplyPipeline,
+          blockStreamingEnabled,
+          blockReplyChunking,
+          resolvedBlockStreamingBreak,
+          applyReplyToMode,
+          shouldEmitToolResult,
+          shouldEmitToolOutput,
+          pendingToolTasks,
+          resetSessionAfterCompactionFailure,
+          resetSessionAfterRoleOrderingConflict,
+          isHeartbeat,
+          sessionKey,
+          runtimePolicySessionKey,
+          getActiveSessionEntry: () => activeSessionEntry,
+          activeSessionStore,
+          storePath,
+          resolvedVerboseLevel,
+          toolProgressDetail,
+          replyMediaContext,
+        }),
+      );
+    const runOutcome = sessionKey
+      ? await withChatRequestScope({ sessionKey }, runTurn)
+      : await runTurn();
 
     if (runOutcome.kind === "final") {
       if (!replyOperation.result) {

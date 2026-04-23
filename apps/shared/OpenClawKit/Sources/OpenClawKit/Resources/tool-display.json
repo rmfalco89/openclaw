@@ -893,6 +893,15 @@
         "text",
         "channel"
       ]
+    },
+    "claude_code": {
+      "emoji": "🧠",
+      "title": "Claude Code",
+      "detailKeys": [
+        "task",
+        "workdir",
+        "timeoutSeconds"
+      ]
     }
   }
 }

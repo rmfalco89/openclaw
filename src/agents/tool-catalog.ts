@@ -198,6 +198,14 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
     includeInOpenClawGroup: true,
   },
   {
+    id: "claude_code",
+    label: "claude_code",
+    description: "Delegate a heavy task to a fresh Claude Code session with full native tools",
+    sectionId: "sessions",
+    profiles: ["coding", "messaging"],
+    includeInOpenClawGroup: true,
+  },
+  {
     id: "browser",
     label: "browser",
     description: "Control web browser",

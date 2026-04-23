@@ -46,14 +46,17 @@ describe("createTtsTool", () => {
     const tool = createTtsTool();
     const result = await tool.execute("call-1", { text: "hello" });
 
-    expect(result.content).toEqual([{ type: "text", text: "(spoken) hello" }]);
-    const details = requireRecord(result.details, "TTS result details");
-    expect(details.audioPath).toBe("/tmp/reply.opus");
-    expect(details.provider).toBe("test");
-    expect(requireRecord(details.media, "TTS media details")).toEqual({
-      mediaUrl: "/tmp/reply.opus",
-      trustedLocalMedia: true,
-      audioAsVoice: true,
+    expect(result).toMatchObject({
+      content: [{ type: "text", text: "(spoken) hello\naudioPath=/tmp/reply.opus" }],
+      details: {
+        audioPath: "/tmp/reply.opus",
+        provider: "test",
+        media: {
+          mediaUrl: "/tmp/reply.opus",
+          trustedLocalMedia: true,
+          audioAsVoice: true,
+        },
+      },
     });
     expect(JSON.stringify(result.content)).not.toContain("MEDIA:");
   });
@@ -136,7 +139,9 @@ describe("createTtsTool", () => {
     const tool = createTtsTool();
     const result = await tool.execute("call-1", { text: spoken });
 
-    expect(result.content).toEqual([{ type: "text", text: `(spoken) ${spoken}` }]);
+    expect(result.content).toEqual([
+      { type: "text", text: `(spoken) ${spoken}\naudioPath=/tmp/reply.opus` },
+    ]);
   });
 
   it("defuses reply-directive tokens embedded in the spoken text", async () => {

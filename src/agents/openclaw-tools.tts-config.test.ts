@@ -116,6 +116,7 @@ vi.mock("./tools/web-tools.js", () => ({
 
 vi.mock("../tts/tts.js", () => ({
   textToSpeech: mocks.textToSpeech,
+  resolveTtsConfig: vi.fn(() => ({ modelOverrides: { enabled: false } })),
 }));
 
 function getTextToSpeechParams() {

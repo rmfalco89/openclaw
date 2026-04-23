@@ -1,7 +1,8 @@
 import { Type } from "typebox";
 import { getRuntimeConfig } from "../../config/config.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
-import { textToSpeech } from "../../tts/tts.js";
+import { parseTtsDirectives } from "../../tts/directives.js";
+import { resolveTtsConfig, textToSpeech } from "../../tts/tts.js";
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
 import type { AnyAgentTool } from "./common.js";
 import { ToolInputError, readNumberParam, readStringParam } from "./common.js";
@@ -66,10 +67,16 @@ export function createTtsTool(opts?: {
     parameters: TtsToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
-      const text = readStringParam(params, "text", { required: true });
+      const rawText = readStringParam(params, "text", { required: true });
       const channel = readStringParam(params, "channel");
       const timeoutMs = readTtsTimeoutMs(params);
       const cfg = opts?.config ?? getRuntimeConfig();
+
+      // Parse [[tts:voiceId=...]] directives so agents can override voice/model
+      const ttsConfig = resolveTtsConfig(cfg);
+      const directives = parseTtsDirectives(rawText, ttsConfig.modelOverrides);
+      const text = directives.cleanedText.trim() || rawText;
+
       const result = await textToSpeech({
         text,
         cfg,
@@ -77,6 +84,7 @@ export function createTtsTool(opts?: {
         timeoutMs,
         agentId: opts?.agentId,
         accountId: opts?.agentAccountId,
+        overrides: directives.overrides,
       });
 
       if (result.success && result.audioPath) {
@@ -86,7 +94,12 @@ export function createTtsTool(opts?: {
         // utterance cannot inject reply directives when the tool output is
         // rendered in verbose mode.
         return {
-          content: [{ type: "text", text: `(spoken) ${sanitizeTranscriptForToolContent(text)}` }],
+          content: [
+            {
+              type: "text",
+              text: `(spoken) ${sanitizeTranscriptForToolContent(text)}\naudioPath=${result.audioPath}`,
+            },
+          ],
           details: {
             audioPath: result.audioPath,
             provider: result.provider,

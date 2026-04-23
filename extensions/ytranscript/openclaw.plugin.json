@@ -1,0 +1,17 @@
+{
+  "id": "ytranscript",
+  "activation": {
+    "onStartup": false
+  },
+  "enabledByDefault": false,
+  "name": "YouTube Transcript",
+  "description": "Fetch YouTube transcripts from the local ytranscript service",
+  "contracts": {
+    "tools": ["ytranscript"]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

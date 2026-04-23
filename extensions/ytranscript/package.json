@@ -1,0 +1,18 @@
+{
+  "name": "@openclaw/ytranscript-plugin",
+  "version": "2026.4.10",
+  "private": true,
+  "description": "OpenClaw ytranscript plugin",
+  "type": "module",
+  "dependencies": {
+    "@sinclair/typebox": "0.34.49"
+  },
+  "devDependencies": {
+    "@openclaw/plugin-sdk": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

@@ -325,9 +325,13 @@ export function formatDockerDaemonUnavailableError(stderr: string): string {
     .join(" ");
 }
 
-async function inspectDockerImage(image: string): Promise<"exists" | "missing"> {
+async function inspectDockerImage(
+  image: string,
+  abortSignal?: AbortSignal,
+): Promise<"exists" | "missing"> {
   const result = await execDocker(["image", "inspect", image], {
     allowFailure: true,
+    signal: abortSignal,
   });
   if (result.code === 0) {
     return "exists";
@@ -342,8 +346,8 @@ async function inspectDockerImage(image: string): Promise<"exists" | "missing"> 
   throw new Error(`Failed to inspect sandbox image: ${stderr}`);
 }
 
-export async function ensureDockerImage(image: string) {
-  const imageState = await inspectDockerImage(image);
+export async function ensureDockerImage(image: string, abortSignal?: AbortSignal) {
+  const imageState = await inspectDockerImage(image, abortSignal);
   if (imageState === "exists") {
     return;
   }
@@ -544,9 +548,10 @@ async function createSandboxContainer(params: {
   agentWorkspaceDir: string;
   scopeKey: string;
   configHash?: string;
+  abortSignal?: AbortSignal;
 }) {
   const { name, cfg, workspaceDir, scopeKey } = params;
-  await ensureDockerImage(cfg.image);
+  await ensureDockerImage(cfg.image, params.abortSignal);
 
   const args = buildSandboxCreateArgs({
     name,
@@ -567,11 +572,13 @@ async function createSandboxContainer(params: {
   appendCustomBinds(args, cfg);
   args.push(cfg.image, "sleep", "infinity");
 
-  await execDocker(args);
-  await execDocker(["start", name]);
+  await execDocker(args, { signal: params.abortSignal });
+  await execDocker(["start", name], { signal: params.abortSignal });
 
   if (cfg.setupCommand?.trim()) {
-    await execDocker(["exec", "-i", name, "/bin/sh", "-lc", cfg.setupCommand]);
+    await execDocker(["exec", "-i", name, "/bin/sh", "-lc", cfg.setupCommand], {
+      signal: params.abortSignal,
+    });
   }
 }
 
@@ -595,6 +602,7 @@ export async function ensureSandboxContainer(params: {
   workspaceDir: string;
   agentWorkspaceDir: string;
   cfg: SandboxConfig;
+  abortSignal?: AbortSignal;
 }) {
   const scopeKey = resolveSandboxScopeKey(params.cfg.scope, params.sessionKey);
   const slug = params.cfg.scope === "shared" ? "shared" : slugifySessionKey(scopeKey);
@@ -638,7 +646,10 @@ export async function ensureSandboxContainer(params: {
           `Sandbox config changed for ${containerName} (recently used). Recreate to apply: ${hint}`,
         );
       } else {
-        await execDocker(["rm", "-f", containerName], { allowFailure: true });
+        await execDocker(["rm", "-f", containerName], {
+          allowFailure: true,
+          signal: params.abortSignal,
+        });
         hasContainer = false;
         running = false;
       }
@@ -653,9 +664,10 @@ export async function ensureSandboxContainer(params: {
       agentWorkspaceDir: params.agentWorkspaceDir,
       scopeKey,
       configHash: expectedHash,
+      abortSignal: params.abortSignal,
     });
   } else if (!running) {
-    await execDocker(["start", containerName]);
+    await execDocker(["start", containerName], { signal: params.abortSignal });
   }
   await updateRegistry({
     containerName,

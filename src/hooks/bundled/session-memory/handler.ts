@@ -85,28 +85,6 @@ function formatLocalSessionTimestamp(date: Date): {
   };
 }
 
-async function resolveAvailableMemoryFilename(params: {
-  memoryDir: string;
-  dateStr: string;
-  slug: string;
-}): Promise<string> {
-  const basename = `${params.dateStr}-${params.slug}`;
-  let suffix = 1;
-
-  while (true) {
-    const filename = suffix === 1 ? `${basename}.md` : `${basename}-${suffix}.md`;
-    try {
-      await fs.access(path.join(params.memoryDir, filename));
-      suffix += 1;
-    } catch (err) {
-      if ((err as { code?: string }).code === "ENOENT") {
-        return filename;
-      }
-      throw err;
-    }
-  }
-}
-
 function resolveDisplaySessionKey(params: {
   cfg?: OpenClawConfig;
   workspaceDir?: string;
@@ -244,8 +222,8 @@ async function saveSessionMemoryNow(event: Parameters<HookHandler>[0]): Promise<
       log.debug("Using fallback timestamp slug", { slug });
     }
 
-    // Create filename with date and slug
-    const filename = await resolveAvailableMemoryFilename({ memoryDir, dateStr, slug });
+    // One file per day; append to existing daily file rather than spawning per-session slug files.
+    const filename = `${dateStr}.md`;
     const memoryFilePath = path.join(memoryDir, filename);
     log.debug("Memory file path resolved", {
       filename,
@@ -259,9 +237,12 @@ async function saveSessionMemoryNow(event: Parameters<HookHandler>[0]): Promise<
     const sessionId = (sessionEntry.sessionId as string) || "unknown";
     const source = (context.commandSource as string) || "unknown";
 
+    // Slug (when generated) becomes a header subtitle for searchability inside the daily file.
+    const headerSuffix = slug && !/^\d{4}$/.test(slug) ? ` — ${slug}` : "";
+
     // Build Markdown entry
     const entryParts = [
-      `# Session: ${dateStr} ${timeStr}${timeZoneSuffix}`,
+      `# Session: ${dateStr} ${timeStr}${timeZoneSuffix}${headerSuffix}`,
       "",
       `- **Session Key**: ${displaySessionKey}`,
       `- **Session ID**: ${sessionId}`,
@@ -276,9 +257,24 @@ async function saveSessionMemoryNow(event: Parameters<HookHandler>[0]): Promise<
 
     const entry = entryParts.join("\n");
 
+    // Append to existing daily file when it exists; otherwise create a fresh one.
+    let combined = entry;
+    try {
+      const existing = await fs.readFile(memoryFilePath, "utf-8");
+      const trimmed = existing.replace(/\s+$/, "");
+      if (trimmed.length > 0) {
+        combined = `${trimmed}\n\n---\n\n${entry}`;
+      }
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code !== "ENOENT") {
+        throw err;
+      }
+    }
+
     // Write under memory root with alias-safe file validation.
     const memoryRoot = await root(memoryDir);
-    await memoryRoot.write(filename, entry, { encoding: "utf-8" });
+    await memoryRoot.write(filename, combined, { encoding: "utf-8" });
     log.debug("Memory file written successfully");
 
     // Log completion (but don't send user-visible confirmation - it's internal housekeeping)

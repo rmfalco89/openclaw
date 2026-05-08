@@ -287,7 +287,7 @@ describe("session-memory hook", () => {
       },
       async () => {
         const { files } = await runNewWithPreviousSession({ sessionContent });
-        expect(files[0]).toMatch(/^\d{4}-\d{2}-\d{2}-\d{4}\.md$/);
+        expect(files[0]).toMatch(/^\d{4}-\d{2}-\d{2}\.md$/);
       },
     );
 
@@ -311,7 +311,7 @@ describe("session-memory hook", () => {
         VITEST: undefined,
       },
       async () => {
-        const { files } = await runNewWithPreviousSession({
+        const { files, memoryContent } = await runNewWithPreviousSession({
           sessionContent,
           cfg: (tempDir) =>
             ({
@@ -328,7 +328,8 @@ describe("session-memory hook", () => {
               },
             }) satisfies OpenClawConfig,
         });
-        expectDatedMemoryFile(files, "simple-math");
+        expect(files).toEqual([expect.stringMatching(/^\d{4}-\d{2}-\d{2}\.md$/)]);
+        expect(memoryContent).toContain("— simple-math");
       },
     );
 
@@ -395,7 +396,12 @@ describe("session-memory hook", () => {
         await flushSessionMemoryWritesForTest();
 
         const files = await fs.readdir(path.join(tempDir, "memory"));
-        expectDatedMemoryFile(files, "slow-reset");
+        expect(files).toEqual([expect.stringMatching(/^\d{4}-\d{2}-\d{2}\.md$/)]);
+        const memoryContent = await fs.readFile(
+          path.join(tempDir, "memory", files[0] ?? ""),
+          "utf-8",
+        );
+        expect(memoryContent).toContain("— slow-reset");
       },
     );
   });
@@ -427,13 +433,13 @@ describe("session-memory hook", () => {
         },
       });
 
-      expect(files).toEqual(["2025-12-31-2330.md"]);
+      expect(files).toEqual(["2025-12-31.md"]);
       expect(memoryContent).toMatch(/^# Session: 2025-12-31 23:30:15(?: EST| GMT-5)?/);
       expect(memoryContent).not.toContain("# Session: 2026-01-01 04:30:15 UTC");
     });
   });
 
-  it("keeps same-minute fallback timestamp captures by adding a filename suffix", async () => {
+  it("appends multiple same-day captures into one daily file separated by ---", async () => {
     await withEnvAsync({ TZ: "UTC" }, async () => {
       const tempDir = await createCaseWorkspace("workspace");
       const timestamp = new Date("2026-01-01T04:30:15.000Z");
@@ -455,16 +461,12 @@ describe("session-memory hook", () => {
 
       const memoryDir = path.join(tempDir, "memory");
       const files = await fs.readdir(memoryDir);
-      expect(files).toHaveLength(2);
-      expect(files).toContain("2026-01-01-0430.md");
-      expect(files).toContain("2026-01-01-0430-2.md");
+      expect(files).toEqual(["2026-01-01.md"]);
 
-      await expect(
-        fs.readFile(path.join(memoryDir, "2026-01-01-0430.md"), "utf-8"),
-      ).resolves.toContain("- **Session ID**: first-session");
-      await expect(
-        fs.readFile(path.join(memoryDir, "2026-01-01-0430-2.md"), "utf-8"),
-      ).resolves.toContain("- **Session ID**: second-session");
+      const contents = await fs.readFile(path.join(memoryDir, "2026-01-01.md"), "utf-8");
+      expect(contents).toContain("- **Session ID**: first-session");
+      expect(contents).toContain("- **Session ID**: second-session");
+      expect(contents).toContain("\n---\n");
     });
   });
 

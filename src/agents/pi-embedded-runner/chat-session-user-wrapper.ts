@@ -1,4 +1,4 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import { getChatRequestScope } from "../chat-request-scope.js";
 import { streamWithPayloadPatch } from "./stream-payload-utils.js";
 
@@ -16,7 +16,11 @@ import { streamWithPayloadPatch } from "./stream-payload-utils.js";
  * routing to a per-channel Claude Code session.
  */
 export function createChatSessionUserWrapper(underlying: StreamFn): StreamFn {
-  return (model, context, options) => {
+  return (
+    model: Parameters<StreamFn>[0],
+    context: Parameters<StreamFn>[1],
+    options: Parameters<StreamFn>[2],
+  ) => {
     const scope = getChatRequestScope();
     if (!scope?.sessionKey || model.api !== "openai-completions") {
       return underlying(model, context, options);
